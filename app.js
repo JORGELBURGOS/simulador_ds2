@@ -178,11 +178,37 @@ const initialData = {
     },
     strategies: [
         {
+            id: 1,
             nombre: "Campaña Digital Masiva",
-            duracion: 3,
+            tipo: "PESTEL",
+            productoId: null,
             inversion: 50000,
+            duracion: 3,
             impactoIngresos: 15,
-            impactoCostos: 5
+            impactoCostos: 5,
+            activa: false
+        },
+        {
+            id: 2,
+            nombre: "Alianza con Bancos Clave",
+            tipo: "Porter",
+            productoId: 1,
+            inversion: 75000,
+            duracion: 6,
+            impactoIngresos: 20,
+            impactoCostos: 10,
+            activa: false
+        },
+        {
+            id: 3,
+            nombre: "Expansión a Nuevas Regiones",
+            tipo: "Growth",
+            productoId: 3,
+            inversion: 100000,
+            duracion: 12,
+            impactoIngresos: 25,
+            impactoCostos: 15,
+            activa: false
         }
     ],
     selectedPestelVariables: [],
@@ -213,11 +239,14 @@ const initialData = {
 // Estado de la aplicación
 let state = {
     ...initialData,
-    currentSection: 'dashboard'
+    currentSection: 'productos'
 };
 
 // Inicialización de la aplicación
 document.addEventListener('DOMContentLoaded', function() {
+    // Cargar datos guardados si existen
+    loadSavedData();
+    
     // Generar datos iniciales aleatorios
     generateInitialData();
     
@@ -234,8 +263,41 @@ document.addEventListener('DOMContentLoaded', function() {
     updateUI();
 });
 
+// Cargar datos guardados
+function loadSavedData() {
+    const savedData = localStorage.getItem('newpayStrategicSimulator');
+    if (savedData) {
+        const parsedData = JSON.parse(savedData);
+        
+        // Conservar solo las propiedades que existen en initialData
+        for (const key in parsedData) {
+            if (initialData.hasOwnProperty(key)) {
+                state[key] = parsedData[key];
+            }
+        }
+    }
+}
+
+// Guardar datos
+function saveData() {
+    localStorage.setItem('newpayStrategicSimulator', JSON.stringify({
+        products: state.products,
+        clients: state.clients,
+        strategies: state.strategies,
+        selectedPestelVariables: state.selectedPestelVariables,
+        selectedPorterVariables: state.selectedPorterVariables,
+        activeStrategies: state.activeStrategies,
+        financialData: state.financialData
+    }));
+}
+
 // Generar datos iniciales aleatorios
 function generateInitialData() {
+    // Verificar si ya hay datos generados
+    if (state.products.some(p => p.transactions > 0)) {
+        return;
+    }
+
     // Generar 20 clientes ficticios
     const bankNames = ["Santander", "BBVA", "HSBC", "ICBC", "Macro", "Patagonia", "Ciudad", "Provincia", "Credicoop", "Supervielle"];
     const fintechNames = ["Ualá", "Personal Pay", "Naranja X", "Brubank", "Lemon", "Belo", "Ripio", "Buenbit", "Let's Bit", "Prex"];
@@ -304,6 +366,7 @@ function generateInitialData() {
     
     // Calcular datos financieros iniciales
     calculateFinancials();
+    saveData();
 }
 
 // Configurar navegación
@@ -354,8 +417,8 @@ function loadSection(sectionId) {
         case 'competitivo':
             updatePorterSection();
             break;
-        case 'bcg':
-            updateBCGSection();
+        case 'crecimiento':
+            updateGrowthSection();
             break;
         case 'estrategias':
             updateStrategiesSection();
@@ -415,38 +478,29 @@ function setupEventListeners() {
         
         // Actualizar UI
         updateProductsSection();
+        saveData();
         
         // Resetear formulario
         this.reset();
     });
     
-    // Formulario PESTEL
-    document.getElementById('pestel-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Actualizar análisis PESTEL
+    // Guardar variables PESTEL
+    document.getElementById('save-pestel').addEventListener('click', function() {
         updatePestelAnalysis();
-        
-        // Mostrar pestaña de análisis
         document.querySelector('#entorno .tab-btn[data-tab="pestel-analysis"]').click();
     });
     
-    // Formulario Porter
-    document.getElementById('porter-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Actualizar análisis Porter
+    // Guardar variables Porter
+    document.getElementById('save-porter').addEventListener('click', function() {
         updatePorterAnalysis();
-        
-        // Mostrar pestaña de análisis
         document.querySelector('#competitivo .tab-btn[data-tab="porter-analysis"]').click();
     });
     
-    // Formulario BCG
-    document.getElementById('bcg-form').addEventListener('submit', function(e) {
+    // Formulario BCG (ahora Growth)
+    document.getElementById('growth-form').addEventListener('submit', function(e) {
         e.preventDefault();
         
-        const productId = parseInt(document.getElementById('bcg-product').value);
+        const productId = parseInt(document.getElementById('growth-product').value);
         const marketGrowth = parseFloat(document.getElementById('market-growth').value);
         const marketShare = parseFloat(document.getElementById('market-share').value);
         const growthStrategy = document.getElementById('growth-strategy').value;
@@ -459,10 +513,11 @@ function setupEventListeners() {
             product.strategy = growthStrategy;
             
             // Actualizar UI
-            updateBCGSection();
+            updateGrowthSection();
+            saveData();
             
-            // Generar estrategia Ansoff
-            generateAnsoffStrategy(product);
+            // Generar estrategia de crecimiento
+            generateGrowthStrategy(product);
         }
     });
     
@@ -472,7 +527,7 @@ function setupEventListeners() {
         
         const name = document.getElementById('strategy-name').value;
         const type = document.getElementById('strategy-type').value;
-        const productId = parseInt(document.getElementById('strategy-product').value);
+        const productId = parseInt(document.getElementById('strategy-product').value) || null;
         const investment = parseFloat(document.getElementById('strategy-investment').value);
         const duration = parseInt(document.getElementById('strategy-duration').value);
         const growth = parseFloat(document.getElementById('strategy-growth').value);
@@ -494,6 +549,7 @@ function setupEventListeners() {
         
         // Actualizar UI
         updateStrategiesSection();
+        saveData();
         
         // Resetear formulario
         this.reset();
@@ -511,6 +567,11 @@ function setupEventListeners() {
     document.querySelector('.close-modal').addEventListener('click', function() {
         document.getElementById('modal').style.display = 'none';
     });
+    
+    // Comparación P&L
+    document.getElementById('comparison-type').addEventListener('change', function() {
+        updateComparisonChart();
+    });
 }
 
 // Actualizar toda la UI
@@ -520,7 +581,7 @@ function updateUI() {
     updateClientsSection();
     updatePestelSection();
     updatePorterSection();
-    updateBCGSection();
+    updateGrowthSection();
     updateStrategiesSection();
     updatePLSection();
 }
@@ -858,6 +919,7 @@ function showEditProductModal(product) {
         
         // Recalcular datos financieros
         calculateFinancials();
+        saveData();
         
         // Actualizar UI
         updateUI();
@@ -1031,6 +1093,7 @@ function addVariableInput(category, name = '', impact = 3, isSelected = false) {
             state.selectedPestelVariables = state.selectedPestelVariables.filter(
                 v => !(v.category === category && v.name === name)
             );
+            saveData();
         }
         variableItem.remove();
     });
@@ -1055,6 +1118,8 @@ function updatePestelAnalysis() {
             });
         }
     });
+    
+    saveData();
     
     // Actualizar gráfico y resumen
     updatePestelRadar();
@@ -1305,9 +1370,13 @@ function setupSaveStrategyButtons() {
             };
             
             state.strategies.push(newStrategy);
+            saveData();
             
             // Mostrar confirmación
             alert(`Estrategia "${newStrategy.nombre}" guardada. Puede activarla en la sección de Estrategias.`);
+            
+            // Actualizar sección de estrategias
+            updateStrategiesSection();
         });
     });
 }
@@ -1384,6 +1453,7 @@ function addPorterVariableInput(category, name = '', impact = 3, isSelected = fa
             state.selectedPorterVariables = state.selectedPorterVariables.filter(
                 v => !(v.category === category && v.name === name)
             );
+            saveData();
         }
         variableItem.remove();
     });
@@ -1408,6 +1478,8 @@ function updatePorterAnalysis() {
             });
         }
     });
+    
+    saveData();
     
     // Actualizar gráfico y resumen
     updatePorterRadar();
@@ -1621,8 +1693,8 @@ function generatePorterStrategies() {
     setupSaveStrategyButtons();
 }
 
-// Actualizar sección BCG
-function updateBCGSection() {
+// Actualizar sección de crecimiento
+function updateGrowthSection() {
     // Limpiar cuadrantes
     document.getElementById('star-products').innerHTML = '';
     document.getElementById('question-products').innerHTML = '';
@@ -1630,7 +1702,7 @@ function updateBCGSection() {
     document.getElementById('dog-products').innerHTML = '';
     
     // Actualizar selector de productos
-    const productSelect = document.getElementById('bcg-product');
+    const productSelect = document.getElementById('growth-product');
     productSelect.innerHTML = '<option value="">-- Seleccione producto --</option>';
     
     state.products.forEach(product => {
@@ -1648,7 +1720,7 @@ function updateBCGSection() {
         
         // Agregar al cuadrante correspondiente
         const productEl = document.createElement('div');
-        productEl.className = 'bcg-product';
+        productEl.className = 'growth-product';
         productEl.innerHTML = `
             <span>${product.name}</span>
             <small>(${product.marketShare.toFixed(1)}% share, ${product.marketGrowth.toFixed(1)}% growth)</small>
@@ -1663,13 +1735,13 @@ function updateBCGSection() {
         productSelect.appendChild(option);
     });
     
-    // Actualizar estrategias Ansoff
-    updateAnsoffStrategies();
+    // Actualizar estrategias de crecimiento
+    updateGrowthStrategies();
 }
 
-// Actualizar estrategias Ansoff
-function updateAnsoffStrategies() {
-    const container = document.getElementById('ansoff-strategies-container');
+// Actualizar estrategias de crecimiento
+function updateGrowthStrategies() {
+    const container = document.getElementById('growth-strategies-container');
     container.innerHTML = '';
     
     // Agrupar productos por estrategia
@@ -1717,7 +1789,7 @@ function updateAnsoffStrategies() {
         strategyCard.innerHTML = `
             <div class='strategy-header'>
                 <div class='strategy-title'>${strategyName}</div>
-                <div class='strategy-type type-ansoff'>Ansoff</div>
+                <div class='strategy-type type-growth'>Crecimiento</div>
             </div>
             <div class='strategy-details'>
                 <p>${strategyDesc}</p>
@@ -1734,8 +1806,8 @@ function updateAnsoffStrategies() {
     }
 }
 
-// Generar estrategia Ansoff para un producto
-function generateAnsoffStrategy(product) {
+// Generar estrategia de crecimiento para un producto
+function generateGrowthStrategy(product) {
     let strategyName, strategyDesc, impact;
     
     if (product.marketGrowth >= 10 && product.marketShare >= 15) {
@@ -1763,7 +1835,7 @@ function generateAnsoffStrategy(product) {
     const newStrategy = {
         id: state.strategies.length + 1,
         nombre: strategyName,
-        tipo: 'Ansoff',
+        tipo: 'Growth',
         productoId: product.id,
         inversion: product.marketGrowth >= 10 ? 75000 : 50000,
         duracion: 6,
@@ -1773,6 +1845,7 @@ function generateAnsoffStrategy(product) {
     };
     
     state.strategies.push(newStrategy);
+    saveData();
     
     // Actualizar sección de estrategias
     updateStrategiesSection();
@@ -1799,9 +1872,9 @@ function updateStrategiesSection() {
                 typeClass = 'type-porter';
                 typeName = 'Análisis Competitivo';
                 break;
-            case 'Ansoff':
-                typeClass = 'type-ansoff';
-                typeName = 'Matriz BCG';
+            case 'Growth':
+                typeClass = 'type-growth';
+                typeName = 'Análisis de Crecimiento';
                 break;
             default:
                 typeClass = 'type-custom';
@@ -1864,9 +1937,9 @@ function updateStrategiesSection() {
                 typeClass = 'type-porter';
                 typeName = 'Análisis Competitivo';
                 break;
-            case 'Ansoff':
-                typeClass = 'type-ansoff';
-                typeName = 'Matriz BCG';
+            case 'Growth':
+                typeClass = 'type-growth';
+                typeName = 'Análisis de Crecimiento';
                 break;
             default:
                 typeClass = 'type-custom';
@@ -1937,6 +2010,7 @@ function setupStrategyActionButtons() {
                 
                 // Aplicar impacto de la estrategia
                 applyStrategyImpact(strategy);
+                saveData();
                 
                 // Actualizar UI
                 updateStrategiesSection();
@@ -1956,6 +2030,7 @@ function setupStrategyActionButtons() {
                 
                 // Revertir impacto de la estrategia
                 revertStrategyImpact(strategy);
+                saveData();
                 
                 // Actualizar UI
                 updateStrategiesSection();
@@ -1983,6 +2058,7 @@ function setupStrategyActionButtons() {
             
             if (confirm('¿Está seguro que desea eliminar esta estrategia?')) {
                 state.strategies = state.strategies.filter(s => s.id !== strategyId);
+                saveData();
                 updateStrategiesSection();
             }
         });
@@ -2039,6 +2115,8 @@ function showEditStrategyModal(strategy) {
             revertStrategyImpact(strategy);
             applyStrategyImpact(strategy);
         }
+        
+        saveData();
         
         // Actualizar UI
         updateStrategiesSection();
@@ -2436,11 +2514,6 @@ function updateComparisonChart() {
                 }
             }
         });
-        
-        // Configurar evento para cambiar tipo de comparación
-        document.getElementById('comparison-type').addEventListener('change', function() {
-            updateComparisonChart();
-        });
     }
 }
 
@@ -2477,4 +2550,6 @@ function calculateFinancials() {
     
     state.financialData.nps = Math.min(100, Math.max(0, 50 + npsAdjustment));
     state.financialData.churn = Math.max(0, 5 + churnAdjustment);
+    
+    saveData();
 }
